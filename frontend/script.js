@@ -5,8 +5,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const questionInput = document.querySelector('.question-input');
     const questionsContainer = document.querySelector('.questions');
     const answersContainer = document.querySelector('.answers');
-    const fileUpload = document.getElementById('fileUpload');
+    const uploadButton = document.getElementById('uploadButton');
+    const fileInput = document.getElementById('fileInput');
     const uploadedFiles = document.getElementById('uploadedFiles');
+    const shareBtn = document.querySelector('.share-btn');
+    const helpBtn = document.querySelector('.header-btn:nth-child(2)'); // Selects "Help" button
+
+    // Navigate to Help page
+    helpBtn.addEventListener('click', () => {
+        window.location.href = 'help.html';
+    });
 
     // Sign-in functionality
     signInBtn.addEventListener('click', () => {
@@ -28,49 +36,39 @@ document.addEventListener('DOMContentLoaded', () => {
         loginPage.style.display = 'flex';
     });
 
-    // Add question to backend and display
-    const handleQuestion = async (question) => {
-        try {
-            const response = await fetch('http://localhost:5000/questions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question }),
-            });
+    // Handle Share button click
+    shareBtn.addEventListener('click', async () => {
+        const questionText = questionInput.value.trim();
 
-            if (!response.ok) throw new Error('Failed to add question');
-
-            const data = await response.json();
+        if (questionText !== '') {
             const questionElement = document.createElement('p');
-            questionElement.textContent = data.question;
+            questionElement.textContent = questionText;
             questionsContainer.appendChild(questionElement);
 
-            const answerElement = document.createElement('p');
-            answerElement.textContent = 'Pending answer';
-            answersContainer.appendChild(answerElement);
-        } catch (error) {
-            console.error('Error adding question:', error);
-        }
-    };
+            try {
+                const response = await fetch('http://localhost:5000/questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: questionText }),
+                });
+                if (!response.ok) throw new Error('Failed to add question');
+            } catch (error) {
+                console.error('Error adding question:', error);
+            }
 
-    // Handle Enter key press
-    questionInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && questionInput.value.trim() !== '') {
-            handleQuestion(questionInput.value.trim());
-            questionInput.value = ''; // Clear the input field after submitting
+            questionInput.value = '';
+        } else {
+            alert('Please enter a question to share.');
         }
     });
 
-    // Handle Share button click
-    const shareBtn = document.querySelector('.share-btn');
-    shareBtn.addEventListener('click', () => {
-        if (questionInput.value.trim() !== '') {
-            handleQuestion(questionInput.value.trim());
-            questionInput.value = ''; // Clear the input field after submitting
-        }
+    // Trigger file input when Upload PDF button is clicked
+    uploadButton.addEventListener('click', () => {
+        fileInput.click();
     });
 
     // File upload functionality
-    fileUpload.addEventListener('change', async (event) => {
+    fileInput.addEventListener('change', async (event) => {
         const files = event.target.files;
         if (files.length === 0) return;
 
@@ -78,22 +76,26 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('pdf', files[0]);
 
         try {
-            const questionId = prompt('Enter the question ID to associate with this file:');
-            if (!questionId) {
-                alert('Question ID is required to upload the file.');
+            const response = await fetch('http://localhost:5000/questions');
+            if (!response.ok) throw new Error('Failed to fetch questions');
+
+            const data = await response.json();
+            if (data.length === 0) {
+                alert('No questions available to associate the file.');
                 return;
             }
 
-            const response = await fetch(`http://localhost:5000/questions/${questionId}/upload`, {
+            const latestQuestionId = data[data.length - 1].id;
+            const uploadResponse = await fetch(`http://localhost:5000/questions/${latestQuestionId}/upload`, {
                 method: 'POST',
                 body: formData,
             });
 
-            if (!response.ok) throw new Error('Failed to upload file');
+            if (!uploadResponse.ok) throw new Error('Failed to upload file');
 
-            const data = await response.json();
+            const uploadData = await uploadResponse.json();
             const fileElement = document.createElement('p');
-            fileElement.innerHTML = `Uploaded: <a href="http://localhost:5000${data.pdfPath}" target="_blank">${data.filename}</a>`;
+            fileElement.innerHTML = `Uploaded: <a href="http://localhost:5000${uploadData.pdfPath}" target="_blank">${uploadData.filename}</a>`;
             uploadedFiles.appendChild(fileElement);
         } catch (error) {
             console.error('Error uploading file:', error);
@@ -124,6 +126,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Initial fetch
     fetchQuestions();
 });
